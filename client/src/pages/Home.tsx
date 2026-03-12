@@ -11,12 +11,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, FileText, Settings, Play, Download, ChevronRight, 
   AlertTriangle, CheckCircle, Info, X, FileSpreadsheet,
-  Layers, Activity, BarChart3, ArrowRight
+  Layers, Activity, BarChart3, ArrowRight, HelpCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from 'sonner';
 import { parseFile, parseDeflectionData, parseStructureData, parseCombinedData, detectFileType, generateCombinedTemplate, generateDeflectionTemplate, generateStructureTemplate } from '@/lib/file-parser';
 import { calculateSection, calculateSummary } from '@/lib/tecnapav-calc';
@@ -415,7 +416,7 @@ export default function Home() {
   // ============================================================
 
   return (
-    <div className="min-h-screen blueprint-bg flex flex-col">
+    <div className="min-h-screen blueprint-bg flex flex-col"> 
       {/* Header */}
       <header className="border-b border-border/60 bg-card/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container flex items-center justify-between h-14">
@@ -428,7 +429,21 @@ export default function Home() {
               <span className="text-xs text-muted-foreground ml-2 hidden sm:inline">DNER-PRO 269/94</span>
             </div>
           </div>
-          <StepIndicator current={step} />
+          
+          <div className="flex items-center gap-4">
+            <StepIndicator current={step} />
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2 text-muted-foreground hover:text-primary"
+              onClick={() => setLocation('/help')}
+            >
+              <HelpCircle size={16} />
+              <span className="hidden sm:inline">Como Funciona</span>
+            </Button>
+          </div>
+
         </div>
       </header>
 
