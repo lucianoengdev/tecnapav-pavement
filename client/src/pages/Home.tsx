@@ -598,6 +598,15 @@ export default function Home() {
                         <Download size={12} />
                         Template Estrutura
                       </button>
+                      
+                      {/* NOVO BOTÃO: Como Preencher */}
+                      <button
+                        onClick={() => setLocation('/templates-guide')}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border border-primary/40 bg-primary/10 hover:bg-primary/20 hover:text-primary transition-all text-primary font-bold ml-auto"
+                      >
+                        <HelpCircle size={12} />
+                        Como preencher?
+                      </button>
                     </div>
                   </div>
 
