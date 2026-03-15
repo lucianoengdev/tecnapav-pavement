@@ -183,6 +183,35 @@ export default function Home() {
     Np: 5e6,
     max_HR: undefined,
   });
+
+  // Segmentos State (NOVO)
+  const [useSegments, setUseSegments] = useState(false);
+  const [segmentCount, setSegmentCount] = useState(1);
+  const [segments, setSegments] = useState<{start_km: number, end_km: number, Np: number}[]>([
+    { start_km: 0, end_km: 10, Np: 5e6 }
+  ]);
+
+  const handleSegmentCountChange = (count: number) => {
+    const validCount = Math.max(1, count);
+    setSegmentCount(validCount);
+    setSegments(prev => {
+      const newSegs = [...prev];
+      while (newSegs.length < validCount) {
+        // Preenche o próximo KM Inicial com o Final do anterior automaticamente
+        const lastEnd = newSegs.length > 0 ? newSegs[newSegs.length - 1].end_km : 0;
+        newSegs.push({ start_km: lastEnd, end_km: lastEnd + 10, Np: 5e6 });
+      }
+      return newSegs.slice(0, validCount);
+    });
+  };
+
+  const updateSegment = (index: number, field: 'start_km'|'end_km'|'Np', value: number) => {
+    setSegments(prev => {
+      const newSegs = [...prev];
+      newSegs[index] = { ...newSegs[index], [field]: value };
+      return newSegs;
+    });
+  };
   
   // Calculation state
   const [isCalculating, setIsCalculating] = useState(false);
@@ -318,6 +347,11 @@ export default function Home() {
       // For combined mode: each row is one point with its own structure data
       // We calculate per-section using individual deflection + structure
       
+      const calculationParams: ProjectParameters = {
+        ...params,
+        segments: useSegments ? segments : undefined
+      };
+
       const sections: SectionResult[] = [];
       
       if (uploadMode === 'combined') {
@@ -327,7 +361,7 @@ export default function Home() {
           const defl = deflectionData[i];
           const struct = structureData[i];
           
-          const result = calculateSection([defl.deflection], struct, params);
+          const result = calculateSection([defl.deflection], struct, calculationParams);
           result.station_km = defl.station_km;
           sections.push(result);
           
@@ -357,9 +391,9 @@ export default function Home() {
         }
       }
       
-      const summary = calculateSummary(sections, params);
+      const summary = calculateSummary(sections, calculationParams);
       const calcResult: CalculationResult = {
-        project_params: params,
+        project_params: calculationParams,
         sections,
         summary,
       };
@@ -642,43 +676,76 @@ export default function Home() {
                   </div>
 
                   <div className="space-y-6">
-                    {/* N Number */}
+                    {/* N Number - Segmentado ou Único */}
                     <div className="p-4 rounded-lg border border-border bg-card/50">
-                      <Label className="text-sm font-medium text-foreground mb-3 block">
-                        Número N (Np) — Solicitações Equivalentes Acumuladas
-                      </Label>
-                      <div className="formula-box mb-3">
-                        <span className="text-muted-foreground text-xs">Critério de fadiga: </span>
-                        <span className="text-primary">log D̄ = 3,148 − 0,188 · log(Np)</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Input
-                          type="number"
-                          value={params.Np}
-                          onChange={(e) => setParams(p => ({ ...p, Np: parseFloat(e.target.value) || 1e6 }))}
-                          className="font-mono text-sm"
-                          min={1000}
-                          step={1000000}
-                        />
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          ≈ {params.Np >= 1e9 ? `${(params.Np/1e9).toFixed(1)}×10⁹` : 
-                             params.Np >= 1e6 ? `${(params.Np/1e6).toFixed(1)}×10⁶` : 
-                             params.Np.toExponential(2)}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {[1e5, 5e5, 1e6, 5e6, 1e7, 5e7].map(n => (
+                      <div className="flex items-center justify-between mb-4">
+                        <Label className="text-sm font-medium text-foreground">
+                          Número N (Np) — Solicitações
+                        </Label>
+                        <div className="flex bg-muted rounded p-1">
                           <button
-                            key={n}
-                            onClick={() => setParams(p => ({ ...p, Np: n }))}
-                            className={`text-xs px-2 py-1 rounded border transition-all ${
-                              params.Np === n ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:border-primary/30'
-                            }`}
+                            onClick={() => setUseSegments(false)}
+                            className={`text-xs px-3 py-1 rounded transition-all ${!useSegments ? 'bg-background shadow font-medium text-primary' : 'text-muted-foreground'}`}
                           >
-                            {n >= 1e6 ? `${n/1e6}×10⁶` : `${n/1e3}×10³`}
+                            N Único
                           </button>
-                        ))}
+                          <button
+                            onClick={() => setUseSegments(true)}
+                            className={`text-xs px-3 py-1 rounded transition-all ${useSegments ? 'bg-background shadow font-medium text-primary' : 'text-muted-foreground'}`}
+                          >
+                            Segmentado
+                          </button>
+                        </div>
                       </div>
+
+                      {!useSegments ? (
+                        <>
+                          <div className="formula-box mb-3">
+                            <span className="text-muted-foreground text-xs">Critério de fadiga: </span>
+                            <span className="text-primary">log D̄ = 3,148 − 0,188 · log(Np)</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Input
+                              type="number"
+                              value={params.Np}
+                              onChange={(e) => setParams(p => ({ ...p, Np: parseFloat(e.target.value) || 1e6 }))}
+                              className="font-mono text-sm"
+                            />
+                            <span className="text-xs text-muted-foreground">Eixos Padrão</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-4 mt-2">
+                          <div className="flex items-center gap-3 border-b border-border pb-4">
+                            <Label className="text-xs text-muted-foreground">Quantos segmentos rodoviários?</Label>
+                            <Input 
+                              type="number" min={1} max={20}
+                              value={segmentCount} 
+                              onChange={(e) => handleSegmentCountChange(parseInt(e.target.value) || 1)}
+                              className="w-20 h-8 text-sm"
+                            />
+                          </div>
+
+                          <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                            {segments.map((seg, idx) => (
+                              <div key={idx} className="flex gap-2 items-end bg-background p-3 rounded border border-border">
+                                <div className="flex-1">
+                                  <Label className="text-[10px] text-muted-foreground uppercase">KM Inicial</Label>
+                                  <Input type="number" step="0.1" value={seg.start_km} onChange={(e) => updateSegment(idx, 'start_km', parseFloat(e.target.value) || 0)} className="h-8 font-mono text-xs" />
+                                </div>
+                                <div className="flex-1">
+                                  <Label className="text-[10px] text-muted-foreground uppercase">KM Final</Label>
+                                  <Input type="number" step="0.1" value={seg.end_km} onChange={(e) => updateSegment(idx, 'end_km', parseFloat(e.target.value) || 0)} className="h-8 font-mono text-xs" />
+                                </div>
+                                <div className="flex-[2]">
+                                  <Label className="text-[10px] text-muted-foreground uppercase">Número N</Label>
+                                  <Input type="number" value={seg.Np} onChange={(e) => updateSegment(idx, 'Np', parseFloat(e.target.value) || 0)} className="h-8 font-mono text-xs" />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Analysis Period */}
