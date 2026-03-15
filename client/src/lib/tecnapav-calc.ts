@@ -32,11 +32,18 @@ export interface TrafficData {
   growth_rate: number;     // % per year
 }
 
+export interface TrafficSegment {
+  start_km: number;
+  end_km: number;
+  Np: number;
+}
+
 export interface ProjectParameters {
   analysis_period: number;  // years
   growth_rate: number;      // % per year
-  Np: number;               // N number (cumulative equivalent axles)
-  max_HR?: number;          // economic restriction: max reinforcement thickness (cm)
+  Np: number;               // N number default
+  segments?: TrafficSegment[]; // NOVO: Múltiplos segmentos
+  max_HR?: number;          // economic restriction
 }
 
 export type SoilType = 'I' | 'II' | 'III';
@@ -319,7 +326,18 @@ export function calculateSection(
   const hef = calcHef(Dc, I1, I2, structure.he);
   
   // Step 4: Maximum admissible deflection (fatigue criterion)
-  const D_max = calcDmax(params.Np);
+  let section_Np = params.Np;
+  if (params.segments && params.segments.length > 0) {
+    const matchingSegment = params.segments.find(s => 
+      structure.station_km !== undefined &&
+      structure.station_km >= s.start_km && 
+      structure.station_km <= s.end_km
+    );
+    if (matchingSegment) {
+      section_Np = matchingSegment.Np;
+    }
+  }
+  const D_max = calcDmax(section_Np);
   
   // Step 5: Reinforcement thickness
   const HR_raw = calcHR(D_max, hef, I1, I2);
