@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, FileText, Settings, Play, Download, ChevronRight, 
   AlertTriangle, CheckCircle, Info, X, FileSpreadsheet,
-  Layers, Activity, BarChart3, ArrowRight, HelpCircle
+  Layers, Activity, BarChart3, ArrowRight, HelpCircle, Calculator
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -603,6 +603,26 @@ export default function Home() {
                       />
                     </div>
                   )}
+
+                  {/* Ferramenta Auxiliar de TR */}
+                  <div className="mt-6 mb-4 p-4 rounded-lg border border-accent/30 bg-accent/5 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-accent flex items-center gap-2">
+                        <Calculator size={14} /> Pré-processamento: Inventário de Superfície
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Tem a planilha bruta de defeitos? Calcule o TR (%) automaticamente pela norma antes de importar.
+                      </p>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-accent text-accent hover:bg-accent/10"
+                      onClick={() => setLocation('/inventory-helper')}
+                    >
+                      Calcular TR
+                    </Button>
+                  </div>
 
                   {/* Template downloads */}
                   <div className="mt-6 p-4 rounded-lg border border-border bg-card/50">
