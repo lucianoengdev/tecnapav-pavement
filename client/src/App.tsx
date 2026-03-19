@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import Results from "./pages/Results";
 import Help from "./pages/Help";
 import TemplateHelp from "./pages/TemplateHelp";
+import InventoryHelper from "./pages/InventoryHelper";
 
 function Router() {
   return (
@@ -16,6 +17,7 @@ function Router() {
       <Route path={"/results"} component={Results} />
       <Route path={"/help"} component={Help} />
       <Route path={"/templates-guide"} component={TemplateHelp} />
+      <Route path={"/inventory-helper"} component={InventoryHelper} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
