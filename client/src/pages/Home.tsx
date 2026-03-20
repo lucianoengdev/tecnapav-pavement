@@ -604,23 +604,23 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* Ferramenta Auxiliar de TR */}
+                  {/* Ferramentas de Pré-processamento */}
                   <div className="mt-6 mb-4 p-4 rounded-lg border border-accent/30 bg-accent/5 flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-semibold text-accent flex items-center gap-2">
-                        <Calculator size={14} /> Pré-processamento: Inventário de Superfície
+                        <Calculator size={14} /> Pré-processamento de Dados Brutos
                       </h3>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Tem a planilha bruta de defeitos? Calcule o TR (%) automaticamente pela norma antes de importar.
+                        Formate planilhas de FWD ou calcule o TR (%) do inventário de superfície antes de importar.
                       </p>
                     </div>
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="border-accent text-accent hover:bg-accent/10"
+                      className="border-accent text-accent hover:bg-accent/10 whitespace-nowrap ml-4"
                       onClick={() => setLocation('/inventory-helper')}
                     >
-                      Calcular TR
+                      Estruturar dados
                     </Button>
                   </div>
 
