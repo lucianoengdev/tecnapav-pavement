@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ArrowLeft, Calculator, Download, FileSpreadsheet, AlertTriangle, Activity } from 'lucide-react';
+import { ArrowLeft, Calculator, Download, FileSpreadsheet, AlertTriangle, Activity, Layers } from 'lucide-react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,11 +14,10 @@ export default function InventoryHelper() {
   const trInputRef = useRef<HTMLInputElement>(null);
   const fwdInputRef = useRef<HTMLInputElement>(null);
 
-  // Função auxiliar universal para converter valores (trata vírgula e ponto)
   const parseNumber = (val: any): number => {
     if (val === undefined || val === null || val === '') return 0;
     if (typeof val === 'number') return val;
-    const str = String(val).trim().replace(',', '.'); // Troca vírgula por ponto
+    const str = String(val).trim().replace(',', '.');
     const num = parseFloat(str);
     return isNaN(num) ? 0 : num;
   };
@@ -51,7 +50,7 @@ export default function InventoryHelper() {
       const calculated: { km: number; tr: number }[] = [];
       const S = 20 * laneWidth; 
 
-      for (let i = 5; i < rows.length; i++) { // Linha 6 em diante
+      for (let i = 5; i < rows.length; i++) {
         const row = rows[i];
         if (!row || row.length === 0) continue;
 
@@ -107,12 +106,12 @@ export default function InventoryHelper() {
     try {
       const data = await fwdFile.arrayBuffer();
       const workbook = XLSX.read(data, { type: 'array' });
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]]; // Somente primeira aba
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
       
       const extracted: { km: number; d0: number }[] = [];
 
-      for (let i = 8; i < rows.length; i++) { // Linha 9 em diante (índice 8)
+      for (let i = 8; i < rows.length; i++) {
         const row = rows[i];
         if (!row || row.length === 0) continue;
 
@@ -140,12 +139,54 @@ export default function InventoryHelper() {
   const downloadFwdCSV = () => {
     let csvContent = "station_id,station_km,deflection\n";
     fwdResults.forEach(row => {
-      // Formata KM com 2 casas decimais conforme solicitado
       const kmFormatted = row.km.toFixed(2);
       const stationId = `Estaca_${kmFormatted.replace('.', '_')}`;
       csvContent += `${stationId},${kmFormatted},${row.d0}\n`;
     });
     triggerDownload(csvContent, "deflexoes_fwd_estruturado.csv");
+  };
+
+  // ==========================================
+  // LÓGICA: MESCLAR E EXPORTAR AMBOS
+  // ==========================================
+  const downloadCombinedCSV = () => {
+    // Usamos um Map com a chave sendo o KM (com 3 casas decimais para evitar bugs de float)
+    const combinedMap = new Map<string, { km: number; tr?: number; d0?: number }>();
+
+    // 1. Inserir todos os TRs
+    trResults.forEach(row => {
+      const key = row.km.toFixed(3);
+      combinedMap.set(key, { km: row.km, tr: row.tr });
+    });
+
+    // 2. Inserir ou atualizar com os FWDs
+    fwdResults.forEach(row => {
+      const key = row.km.toFixed(3);
+      if (combinedMap.has(key)) {
+        combinedMap.get(key)!.d0 = row.d0;
+      } else {
+        combinedMap.set(key, { km: row.km, d0: row.d0 });
+      }
+    });
+
+    // 3. Transformar em Array e ordenar por KM crescente
+    const sortedArray = Array.from(combinedMap.values()).sort((a, b) => a.km - b.km);
+
+    // 4. Gerar o CSV
+    let csvContent = "station_id,station_km,deflection,TR\n";
+    
+    sortedArray.forEach(row => {
+      const kmFormatted = row.km.toFixed(3);
+      const stationId = `Estaca_${kmFormatted.replace('.', '_')}`;
+      // Se não houver dado em uma das planilhas para este KM, deixa a célula vazia
+      const deflection = row.d0 !== undefined ? row.d0 : "";
+      const tr = row.tr !== undefined ? row.tr : "";
+      
+      csvContent += `${stationId},${kmFormatted},${deflection},${tr}\n`;
+    });
+
+    triggerDownload(csvContent, "dados_mesclados_fwd_tr.csv");
+    toast.success("Planilha combinada exportada com sucesso!");
   };
 
   // Helper para baixar arquivos
@@ -160,7 +201,7 @@ export default function InventoryHelper() {
   };
 
   // ==========================================
-  // RENDERIZAÇÃO (INTERFACE LADO A LADO)
+  // RENDERIZAÇÃO
   // ==========================================
   return (
     <div className="min-h-screen blueprint-bg text-foreground">
@@ -190,9 +231,7 @@ export default function InventoryHelper() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           
-          {/* ========================================== */}
-          {/* COLUNA ESQUERDA: INVENTÁRIO (TR)           */}
-          {/* ========================================== */}
+          {/* COLUNA ESQUERDA: INVENTÁRIO (TR) */}
           <div className="bg-card/50 border border-border rounded-xl p-6 flex flex-col h-full">
             <div className="mb-6 flex items-center gap-3">
               <div className="p-2 bg-primary/20 rounded-lg text-primary">
@@ -238,16 +277,14 @@ export default function InventoryHelper() {
               </Button>
               {trResults.length > 0 && (
                 <Button onClick={downloadTrCSV} variant="outline" className="w-full gap-2 border-primary text-primary">
-                  <Download size={16} /> Exportar CSV (TR)
+                  <Download size={16} /> Exportar CSV Individual (TR)
                 </Button>
               )}
             </div>
           </div>
 
 
-          {/* ========================================== */}
-          {/* COLUNA DIREITA: FWD                        */}
-          {/* ========================================== */}
+          {/* COLUNA DIREITA: FWD */}
           <div className="bg-card/50 border border-border rounded-xl p-6 flex flex-col h-full">
             <div className="mb-6 flex items-center gap-3">
               <div className="p-2 bg-accent/20 rounded-lg text-accent">
@@ -265,8 +302,7 @@ export default function InventoryHelper() {
                 <ul className="list-disc pl-4 space-y-1 text-xs">
                   <li>Lê apenas a 1ª aba da planilha.</li>
                   <li>Ignora o cabeçalho (pula as 8 primeiras linhas).</li>
-                  <li>Formata o KM para 2 casas decimais.</li>
-                  <li>Garante a formatação correta do CSV de saída.</li>
+                  <li>Exporta Deflexão e KM formatado.</li>
                 </ul>
               </div>
 
@@ -293,13 +329,43 @@ export default function InventoryHelper() {
               </Button>
               {fwdResults.length > 0 && (
                 <Button onClick={downloadFwdCSV} variant="outline" className="w-full gap-2 border-accent text-accent">
-                  <Download size={16} /> Exportar CSV (FWD)
+                  <Download size={16} /> Exportar CSV Individual (FWD)
                 </Button>
               )}
             </div>
           </div>
-
         </div>
+
+        {/* ========================================== */}
+        {/* BANNER INFERIOR: MESCLAR ARQUIVOS          */}
+        {/* ========================================== */}
+        {trResults.length > 0 && fwdResults.length > 0 && (
+          <div className="mt-8 bg-primary/10 border border-primary/40 rounded-xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6 animate-in slide-in-from-bottom-4">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-primary/20 rounded-full text-primary shrink-0">
+                <Layers size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-primary">
+                  Mesclar e Estruturar Planilha Final
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-xl">
+                  Ambos os arquivos foram processados. O sistema irá cruzar os quilômetros de cada estaca, colocar em ordem crescente e gerar uma planilha unificada com Deflexões e TRs, pronta para o TECNAPAV.
+                </p>
+              </div>
+            </div>
+            
+            <Button 
+              onClick={downloadCombinedCSV} 
+              className="gap-2 whitespace-nowrap h-12 px-6 bg-primary hover:bg-primary/90" 
+              size="lg"
+            >
+              <Download size={18} /> 
+              Exportar CSV Combinado
+            </Button>
+          </div>
+        )}
+
       </main>
     </div>
   );
