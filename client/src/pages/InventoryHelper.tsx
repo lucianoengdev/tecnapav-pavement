@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ArrowLeft, Calculator, Download, FileSpreadsheet, AlertTriangle, Activity, Layers } from 'lucide-react';
+import { ArrowLeft, Calculator, Download, FileSpreadsheet, Activity, Layers } from 'lucide-react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -84,7 +84,7 @@ export default function InventoryHelper() {
     let csvContent = "station_id,station_km,TR\n";
     trResults.forEach(row => {
       const stationId = `Estaca_${row.km.toFixed(3).replace('.', '_')}`;
-      csvContent += `${stationId},${row.km},${row.tr}\n`;
+      csvContent += `${stationId},${row.km.toFixed(3)},${row.tr}\n`;
     });
     triggerDownload(csvContent, "inventario_TR_calculado.csv");
   };
@@ -139,7 +139,7 @@ export default function InventoryHelper() {
   const downloadFwdCSV = () => {
     let csvContent = "station_id,station_km,deflection\n";
     fwdResults.forEach(row => {
-      const kmFormatted = row.km.toFixed(2);
+      const kmFormatted = row.km.toFixed(3);
       const stationId = `Estaca_${kmFormatted.replace('.', '_')}`;
       csvContent += `${stationId},${kmFormatted},${row.d0}\n`;
     });
@@ -147,46 +147,86 @@ export default function InventoryHelper() {
   };
 
   // ==========================================
-  // LÓGICA: MESCLAR E EXPORTAR AMBOS
+  // LÓGICA: MESCLAR E EXPORTAR AMBOS (COM MALHA)
   // ==========================================
   const downloadCombinedCSV = () => {
-    // Usamos um Map com a chave sendo o KM (com 3 casas decimais para evitar bugs de float)
-    const combinedMap = new Map<string, { km: number; tr?: number; d0?: number }>();
+    if (trResults.length === 0 && fwdResults.length === 0) return;
 
-    // 1. Inserir todos os TRs
-    trResults.forEach(row => {
-      const key = row.km.toFixed(3);
-      combinedMap.set(key, { km: row.km, tr: row.tr });
+    // 1. Descobrir o KM mínimo e máximo absolutos da obra
+    let minKm = Infinity;
+    let maxKm = -Infinity;
+
+    trResults.forEach(r => {
+      if (r.km < minKm) minKm = r.km;
+      if (r.km > maxKm) maxKm = r.km;
+    });
+    fwdResults.forEach(r => {
+      if (r.km < minKm) minKm = r.km;
+      if (r.km > maxKm) maxKm = r.km;
     });
 
-    // 2. Inserir ou atualizar com os FWDs
-    fwdResults.forEach(row => {
-      const key = row.km.toFixed(3);
-      if (combinedMap.has(key)) {
-        combinedMap.get(key)!.d0 = row.d0;
-      } else {
-        combinedMap.set(key, { km: row.km, d0: row.d0 });
+    if (minKm === Infinity || maxKm === -Infinity) return;
+
+    // 2. Converter para números inteiros (multiplicando por 1000) 
+    // para evitar que o Javascript se perca nas casas decimais (ex: 0.020 vira 20)
+    // O Math.floor vai garantir que o início caia exatamente num múltiplo de 20
+    const startInt = Math.floor(Math.round(minKm * 1000) / 20) * 20;
+    const endInt = Math.floor(Math.round(maxKm * 1000) / 20) * 20;
+
+    // 3. Criar os "Baldes" (A malha contínua de 20 em 20 metros)
+    const buckets = new Map<number, { fwd: number[], tr: number[] }>();
+    for (let k = startInt; k <= endInt; k += 20) {
+      buckets.set(k, { fwd: [], tr: [] });
+    }
+
+    // 4. Distribuir os valores de Deflexão puxando para a estaca de trás
+    fwdResults.forEach(r => {
+      const intKm = Math.round(r.km * 1000);
+      const gridInt = Math.floor(intKm / 20) * 20;
+      if (buckets.has(gridInt)) {
+        buckets.get(gridInt)!.fwd.push(r.d0);
       }
     });
 
-    // 3. Transformar em Array e ordenar por KM crescente
-    const sortedArray = Array.from(combinedMap.values()).sort((a, b) => a.km - b.km);
-
-    // 4. Gerar o CSV
-    let csvContent = "station_id,station_km,deflection,TR\n";
-    
-    sortedArray.forEach(row => {
-      const kmFormatted = row.km.toFixed(3);
-      const stationId = `Estaca_${kmFormatted.replace('.', '_')}`;
-      // Se não houver dado em uma das planilhas para este KM, deixa a célula vazia
-      const deflection = row.d0 !== undefined ? row.d0 : "";
-      const tr = row.tr !== undefined ? row.tr : "";
-      
-      csvContent += `${stationId},${kmFormatted},${deflection},${tr}\n`;
+    // 5. Distribuir os valores de TR puxando para a estaca de trás
+    trResults.forEach(r => {
+      const intKm = Math.round(r.km * 1000);
+      const gridInt = Math.floor(intKm / 20) * 20;
+      if (buckets.has(gridInt)) {
+        buckets.get(gridInt)!.tr.push(r.tr);
+      }
     });
 
-    triggerDownload(csvContent, "dados_mesclados_fwd_tr.csv");
-    toast.success("Planilha combinada exportada com sucesso!");
+    // 6. Gerar o arquivo CSV final
+    let csvContent = "station_id,station_km,deflection,TR\n";
+
+    for (let k = startInt; k <= endInt; k += 20) {
+      const bucket = buckets.get(k)!;
+      const kmFormatted = (k / 1000).toFixed(3);
+      const stationId = `Estaca_${kmFormatted.replace('.', '_')}`;
+
+      // Regra FWD: Média
+      let deflectionStr = "";
+      if (bucket.fwd.length > 0) {
+        const sum = bucket.fwd.reduce((a, b) => a + b, 0);
+        const avg = sum / bucket.fwd.length;
+        // Se der número quebrado longo, limita pra não sujar a planilha, senão usa o valor original
+        deflectionStr = avg % 1 === 0 ? avg.toString() : avg.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+      }
+
+      // Regra TR: Máximo
+      let trStr = "";
+      if (bucket.tr.length > 0) {
+        const maxTr = Math.max(...bucket.tr);
+        trStr = maxTr % 1 === 0 ? maxTr.toString() : maxTr.toFixed(2);
+      }
+
+      // Imprime a linha garantindo as vírgulas em branco quando não há dados
+      csvContent += `${stationId},${kmFormatted},${deflectionStr},${trStr}\n`;
+    }
+
+    triggerDownload(csvContent, "dados_mesclados_fwd_tr_padronizado.csv");
+    toast.success("Planilha contínua (20 em 20m) exportada com sucesso!");
   };
 
   // Helper para baixar arquivos
@@ -347,10 +387,10 @@ export default function InventoryHelper() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-primary">
-                  Mesclar e Estruturar Planilha Final
+                  Mesclar e Padronizar Malha (20x20m)
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-                  Ambos os arquivos foram processados. O sistema irá cruzar os quilômetros de cada estaca, colocar em ordem crescente e gerar uma planilha unificada com Deflexões e TRs, pronta para o TECNAPAV.
+                  As estacas fracionadas serão retroagidas para o múltiplo de 20 anterior. Deflexões repetidas terão cálculo de <strong>média</strong>, e Trincamentos repetidos considerarão o valor <strong>máximo</strong>. Linhas sem dados ficarão em branco para manter a continuidade.
                 </p>
               </div>
             </div>
@@ -361,7 +401,7 @@ export default function InventoryHelper() {
               size="lg"
             >
               <Download size={18} /> 
-              Exportar CSV Combinado
+              Exportar CSV Padronizado
             </Button>
           </div>
         )}
